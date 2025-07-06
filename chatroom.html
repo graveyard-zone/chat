@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chatroom • GRAVE-YARD</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #0a0a0a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+  }
+
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header, #members, .input-area {
+    flex-shrink: 0;
+  }
+
+  header {
+    background-color: #111;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #222;
+  }
+
+  #members {
+    padding: 10px 20px;
+    background: #111;
+    border-top: 1px solid #222;
+    font-size: 14px;
+  }
+
+  .chat-box {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  .input-area {
+    display: flex;
+    padding: 12px;
+    background-color: #0a0a0a;
+    border-top: 1px solid #222;
+  }
+
+  #message-input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background: #1a1a1a;
+    color: #fff;
+  }
+
+  #send-btn {
+    padding: 10px 16px;
+    background-color: #00ffcc;
+    border: none;
+    border-radius: 4px;
+    color: #000;
+    margin-left: 10px;
+    cursor: pointer;
+  }
+
+  .message {
+    max-width: 70%;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 8px;
+    position: relative;
+  }
+
+  .sender {
+    background-color: #00ffcc;
+    color: #000;
+    align-self: flex-end;
+    margin-left: auto;
+  }
+
+  .receiver {
+    background-color: #222;
+    align-self: flex-start;
+  }
+
+  .delete-btn {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: none;
+    border: none;
+    color: red;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .back-btn {
+    background-color: transparent;
+    color: #00ffcc;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .chat-box {
+      padding: 10px;
+    }
+
+    #message-input {
+      font-size: 14px;
+    }
+
+    #send-btn {
+      font-size: 14px;
+      padding: 8px 12px;
+    }
+  }
+</style>
+
+</head>
+<body>
+  <header>
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <div id="room-name">Chatroom</div>
+    <div></div>
+  </header>
+
+  <div id="members">Members: Loading...</div>
+  <div class="chat-box" id="chat-box"></div>
+
+  <div class="input-area">
+    <input type="text" id="message-input" placeholder="Type your message..." />
+    <button id="send-btn">Send</button>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(
+      'https://sqrdqbgwkbopuyjfzysq.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmRxYmd3a2JvcHV5amZ6eXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MzEyNTAsImV4cCI6MjA2NzIwNzI1MH0.uuOI4DGGx9jhsnrD2nJmKAr95UQKZGl0QXsxTxgiaOc'
+    );
+
+    const params = new URLSearchParams(location.search);
+    const room_id = params.get("room");
+    const room_name = params.get("name");
+    document.getElementById("room-name").textContent = room_name || "Chatroom";
+
+    const session = await supabase.auth.getSession();
+    const me = session.data.session?.user?.id;
+    if (!me) location.href = "login.html";
+
+    const chatBox = document.getElementById("chat-box");
+    const membersBox = document.getElementById("members");
+
+    // 🔐 Check membership and join if needed
+    const { data: existingMember } = await supabase
+      .from("chatroom_members")
+      .select("*")
+      .eq("room_id", room_id)
+      .eq("user_id", me)
+      .single();
+
+    if (!existingMember) {
+      const { data: room } = await supabase
+        .from("chatrooms")
+        .select("*")
+        .eq("id", room_id)
+        .single();
+
+      if (room.password) {
+        const input = prompt(`This room is locked. Enter password to join:`);
+        if (input !== room.password) {
+          alert("Incorrect password.");
+          location.href = "home.html";
+        }
+      }
+
+      const { error } = await supabase
+        .from("chatroom_members")
+        .insert([{ user_id: me, room_id }]);
+
+      if (error) {
+        alert("Failed to join room.");
+        location.href = "home.html";
+      }
+    }
+
+    async function loadMessages() {
+      const { data, error } = await supabase
+        .from("chatroom_messages")
+        .select("id, message, sender_id, timestamp, profiles!chatroom_messages_sender_id_fkey(username)")
+        .eq("room_id", room_id)
+        .order("timestamp", { ascending: true });
+
+      if (error) return console.error("Load Error:", error);
+
+      chatBox.innerHTML = "";
+      data.forEach(renderMessage);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function renderMessage(msg) {
+      const div = document.createElement("div");
+      div.className = `message ${msg.sender_id === me ? "sender" : "receiver"}`;
+      div.innerHTML = `
+        <strong>@${msg.profiles?.username || "User"}</strong><br>
+        ${msg.message}
+        ${msg.sender_id === me ? `<button class="delete-btn" onclick="deleteMessage('${msg.id}')">x</button>` : ""}
+      `;
+      chatBox.appendChild(div);
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("message-input");
+      const content = input.value.trim();
+      if (!content) return;
+
+      const { error } = await supabase.from("chatroom_messages").insert({
+        sender_id: me,
+        room_id,
+        message: content,
+      });
+
+      if (error) {
+        console.error("Send Error:", error);
+        alert("Send failed.");
+      } else {
+        input.value = "";
+      }
+    }
+
+    async function loadMembers() {
+      const { data, error } = await supabase
+        .from("chatroom_members")
+        .select("profiles(username)")
+        .eq("room_id", room_id);
+
+      if (error) return membersBox.textContent = "Error loading members.";
+      membersBox.textContent = "Members: " + data.map(d => "@" + d.profiles?.username).join(", ");
+    }
+
+    window.deleteMessage = async function (id) {
+      await supabase.from("chatroom_messages").delete().eq("id", id);
+    };
+
+    window.goBack = function () {
+      location.href = "home.html";
+    };
+
+    document.getElementById("send-btn").addEventListener("click", sendMessage);
+    document.getElementById("message-input").addEventListener("keypress", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    supabase
+      .channel("chatroom_auto_refresh_" + room_id)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "chatroom_messages",
+        filter: `room_id=eq.${room_id}`
+      }, payload => {
+        renderMessage(payload.new);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      })
+      .subscribe();
+
+    loadMessages();
+    loadMembers();
+  </script>
+</body>
+</html>

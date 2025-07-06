@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Signup • GRAVE-YARD</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .signup-container {
+      background-color: #131313;
+      border: 1px solid #333;
+      padding: 40px;
+      border-radius: 8px;
+      width: 350px;
+      box-shadow: 0 0 10px #00ffcc33;
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #00ffcc;
+    }
+
+    input {
+      width: 80%;
+      padding: 12px;
+      margin: 10px 0;
+      background-color: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 15px;
+    }
+
+    input::placeholder {
+      color: #888;
+    }
+
+    button {
+      width: 50%;
+      padding: 12px;
+      margin-top: 20px;
+      background-color: #00ffcc;
+      color: #000;
+      font-weight: bold;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background-color: #00ddb5;
+    }
+
+    .message {
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    .success {
+      color: #00ffcc;
+    }
+
+    .error {
+      color: #ff4444;
+    }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .footer a {
+      color: #00ffcc;
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="signup-container">
+    <h2>Join the Cult</h2>
+    <input type="text" id="username" placeholder="Choose a username" />
+    <input type="email" id="email" placeholder="Enter your email" />
+    <input type="password" id="password" placeholder="Create a password" />
+    <button onclick="signup()">Join</button>
+    <div id="message" class="message"></div>
+
+    <div class="footer">
+      Already have an account? <a href="login.html">Login</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(
+      'https://sqrdqbgwkbopuyjfzysq.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmRxYmd3a2JvcHV5amZ6eXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MzEyNTAsImV4cCI6MjA2NzIwNzI1MH0.uuOI4DGGx9jhsnrD2nJmKAr95UQKZGl0QXsxTxgiaOc'
+    );
+
+    window.signup = async function () {
+      const username = document.getElementById('username').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const message = document.getElementById('message');
+
+      message.textContent = '';
+      message.className = 'message';
+
+      if (!username || !email || !password) {
+        message.textContent = 'All fields are required.';
+        message.classList.add('error');
+        return;
+      }
+
+      // 1. Sign up with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error || !data?.user) {
+        message.textContent = error?.message || 'Signup failed.';
+        message.classList.add('error');
+        return;
+      }
+
+      const user_id = data.user.id;
+
+      // 2. Store user profile + plaintext password in `profiles` table
+      const { error: profileError } = await supabase.from('profiles').insert([
+        {
+          id: user_id,
+          username: username,
+          email: email,
+          password: password // ⚠️ Plaintext password
+        }
+      ]);
+
+      if (profileError) {
+        message.textContent = 'Signup succeeded but profile failed.';
+        message.classList.add('error');
+        return;
+      }
+
+      message.textContent = 'Welcome to the GRAVE-YARD.';
+      message.classList.add('success');
+
+      setTimeout(() => {
+        window.location.href = 'login.html';
+      }, 1000);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Private Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+    
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    header {
+      background-color: #111;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #222;
+      flex-shrink: 0;
+    }
+    
+    .chat-box {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    
+    .message {
+      max-width: 70%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      position: relative;
+    }
+    
+    .sender {
+      background-color: #00ffcc;
+      color: #000;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    .receiver {
+      background-color: #222;
+      align-self: flex-start;
+    }
+    
+    .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      background: none;
+      border: none;
+      color: red;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .input-area {
+      display: flex;
+      padding: 15px;
+      border-top: 1px solid #222;
+      background-color: #0a0a0a;
+      flex-shrink: 0;
+    }
+
+    #message-input {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    
+    #send-btn {
+      padding: 10px 16px;
+      background-color: #00ffcc;
+      border: none;
+      border-radius: 4px;
+      color: #000;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    
+    .back-btn {
+      background-color: transparent;
+      color: #00ffcc;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    /* Responsive tweak for small screens */
+    @media (max-width: 600px) {
+      .chat-box {
+        padding: 12px;
+      }
+      .input-area {
+        padding: 10px;
+      }
+      #message-input, #send-btn {
+        font-size: 14px;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <header>
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <div id="chat-with">Chat</div>
+    <div></div>
+  </header>
+
+  <div class="chat-box" id="chat-box"></div>
+
+  <div class="input-area">
+    <input type="text" id="message-input" placeholder="Type your message..." />
+    <button id="send-btn">Send</button>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(
+      'https://sqrdqbgwkbopuyjfzysq.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmRxYmd3a2JvcHV5amZ6eXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MzEyNTAsImV4cCI6MjA2NzIwNzI1MH0.uuOI4DGGx9jhsnrD2nJmKAr95UQKZGl0QXsxTxgiaOc' // Replace with your anon key
+    );
+
+    const params = new URLSearchParams(location.search);
+    const you = params.get("user");
+    const youName = params.get("name");
+    document.getElementById("chat-with").textContent = `@${youName}`;
+
+    const session = await supabase.auth.getSession();
+    const me = session.data.session?.user?.id;
+    if (!me) location.href = 'login.html';
+
+    const chatBox = document.getElementById("chat-box");
+
+    async function loadMessages() {
+      const { data, error } = await supabase
+        .from("private_messages")
+        .select("*")
+        .or(`and(sender_id.eq.${me},receiver_id.eq.${you}),and(sender_id.eq.${you},receiver_id.eq.${me})`)
+        .order("timestamp", { ascending: true });
+
+      if (error) {
+        console.error("Load Error:", error);
+        return;
+      }
+
+      chatBox.innerHTML = "";
+      data.forEach(msg => renderMessage(msg));
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function renderMessage(msg) {
+      const div = document.createElement("div");
+      div.className = `message ${msg.sender_id === me ? "sender" : "receiver"}`;
+      div.innerHTML = `
+        ${msg.message}
+        ${msg.sender_id === me ? `<button class="delete-btn" onclick="deleteMessage('${msg.id}')">x</button>` : ""}
+      `;
+      chatBox.appendChild(div);
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("message-input");
+      const content = input.value.trim();
+      if (!content) return;
+
+      const { error } = await supabase.from("private_messages").insert({
+        sender_id: me,
+        receiver_id: you,
+        message: content,
+      });
+
+      if (error) {
+        console.error("Send Error:", error);
+        return;
+      }
+
+      input.value = "";
+    }
+
+    window.sendMessage = sendMessage;
+
+    document.getElementById("send-btn").addEventListener("click", sendMessage);
+    document.getElementById("message-input").addEventListener("keypress", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    window.deleteMessage = async function (id) {
+      await supabase.from("private_messages").delete().eq("id", id);
+    }
+
+    window.goBack = function () {
+      window.location.href = "home.html";
+    }
+
+    // Real-time updates
+    supabase
+      .channel('private_messages')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'private_messages'
+      }, payload => {
+        const msg = payload.new;
+        if (
+          (msg.sender_id === me && msg.receiver_id === you) ||
+          (msg.sender_id === you && msg.receiver_id === me)
+        ) {
+          renderMessage(msg);
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }
+      })
+      .subscribe();
+
+    loadMessages();
+  </script>
+</body>
+</html>

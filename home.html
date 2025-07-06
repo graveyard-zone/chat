@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GRAVE-YARD • Home</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      background-color: #0a0a0a;
+      color: #00ffcc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+    }
+
+    header {
+      background-color: #111;
+      padding: 15px 20px;
+      text-align: center;
+      font-size: 20px;
+      border-bottom: 1px solid #222;
+    }
+
+    body.light-theme {
+      background-color: #ffffff;
+      color: #000000;
+    }
+    body.light-theme .tab {
+      background-color: #eee;
+      color: #000;
+    }
+    body.light-theme .tab.active {
+      background-color: #00ffcc;
+      color: #000;
+    }
+    body.light-theme .profile-info,
+    body.light-theme input,
+    body.light-theme button,
+    body.light-theme .user-entry,
+    body.light-theme .room-entry {
+      background-color: #f0f0f0 !important;
+      color: #000000 !important;
+    }
+
+
+    .tabs {
+      display: flex;
+      background-color: #111;
+      border-bottom: 1px solid #333;
+    }
+
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 12px;
+      cursor: pointer;
+    }
+
+    .tab:hover, .tab.active {
+      background-color: #00ffcc;
+      color: #000;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 20px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .user-entry, .room-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #222;
+      padding: 10px 0;
+    }
+
+    .user-entry button, .room-entry button {
+      background-color: #00ffcc;
+      border: none;
+      padding: 6px 12px;
+      color: #000;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .chatroom-actions input {
+      padding: 10px;
+      margin: 5px 5px 5px 0;
+      background-color: #1a1a1a;
+      color: #00ffcc;
+      border: 1px solid #444;
+      border-radius: 5px;
+    }
+
+    .chatroom-actions button {
+      background-color: #00ffcc;
+      color: #000;
+      border: none;
+      padding: 10px 16px;
+      margin: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #search-bar {
+      display: flex;
+      margin-bottom: 15px;
+    }
+
+    #search-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #00ffcc;
+      border-radius: 6px 0 0 6px;
+    }
+
+    #search-button {
+      padding: 10px 16px;
+      background-color: #00ffcc;
+      color: #000;
+      border: none;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+    }
+
+    .profile-info {
+      background: #111;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #222;
+    }
+  </style>
+</head>
+<body>
+  <header>GRAVE-YARD</header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('chats')">Chats</div>
+    <div class="tab" onclick="switchTab('chatrooms')">Chatrooms</div>
+    <div class="tab" onclick="switchTab('profile')">Profile</div>
+  </div>
+
+  <div id="chats" class="tab-content active">
+    <div id="search-bar">
+      <input type="text" id="search-input" placeholder="Search users..." onkeyup="searchUsers()" />
+      <button id="search-button" onclick="searchUsers()">Search</button>
+    </div>
+    <div id="search-results"></div>
+    <div id="chat-history"></div>
+  </div>
+
+  <div id="chatrooms" class="tab-content">
+    <div class="chatroom-actions">
+      <input type="text" id="room-name" placeholder="Room name" />
+      <input type="password" id="room-password" placeholder="Password (optional)" />
+      <button onclick="createRoom()">Create</button>
+      <button onclick="joinRoom()">Join</button>
+    </div>
+    <div id="chatroom-list"></div>
+  </div>
+
+  <div id="profile" class="tab-content">
+    <div class="profile-info" id="profile-info">Loading profile...</div>
+    <br />
+    <button onclick="toggleDarkMode()" id="darkmode-btn">Toggle Dark Mode</button>
+    <br /><br />
+    <button onclick="logout()" style="background-color: red; color: white;">Log Out</button>
+  </div>
+
+
+  
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+  const supabase = createClient(
+    "https://sqrdqbgwkbopuyjfzysq.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmRxYmd3a2JvcHV5amZ6eXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MzEyNTAsImV4cCI6MjA2NzIwNzI1MH0.uuOI4DGGx9jhsnrD2nJmKAr95UQKZGl0QXsxTxgiaOc"
+  );
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData.session?.user;
+  if (!user) {
+    alert("You are not logged in. Redirecting...");
+    location.href = "login.html";
+  }
+  const user_id = user.id;
+
+  window.switchTab = function (tabName) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    document.querySelector(`.tab[onclick*="${tabName}"]`).classList.add("active");
+    document.getElementById(tabName).classList.add("active");
+  };
+
+  async function loadProfile() {
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", user_id).single();
+    const p = document.getElementById("profile-info");
+    if (error) return p.textContent = "Error loading profile.";
+    p.innerHTML = `<strong>Username:</strong> @${data.username}<br><strong>Email:</strong> ${data.email}`;
+  }
+
+  window.searchUsers = async function () {
+    const query = document.getElementById("search-input").value.trim();
+    if (!query) return document.getElementById("search-results").innerHTML = "";
+    const { data, error } = await supabase.from("profiles")
+      .select("id, username")
+      .ilike("username", `%${query}%`)
+      .neq("id", user_id);
+    if (error) return console.error(error);
+    const html = data.map(u => `
+      <div class="user-entry">
+        <span>@${u.username}</span>
+        <button onclick="startChat('${u.id}', '${u.username}')">Chat</button>
+      </div>
+    `).join("");
+    document.getElementById("search-results").innerHTML = html;
+  };
+
+  window.startChat = function (id, name) {
+    localStorage.setItem("chat_with", id);
+    localStorage.setItem("chat_with_name", name);
+    location.href = `chat.html?user=${id}&name=${name}`;
+  };
+
+  async function loadChatHistory() {
+    const { data, error } = await supabase
+      .from("private_messages")
+      .select("sender_id, receiver_id")
+      .or(`sender_id.eq.${user_id},receiver_id.eq.${user_id}`)
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      console.error("Error loading chat history:", error);
+      return;
+    }
+
+    const userMap = new Map();
+    for (const msg of data) {
+      const otherUserId = msg.sender_id === user_id ? msg.receiver_id : msg.sender_id;
+      userMap.set(otherUserId, true);
+    }
+
+    if (userMap.size === 0) {
+      document.getElementById("chat-history").innerHTML = "<p>No previous chats found.</p>";
+      return;
+    }
+
+    const ids = [...userMap.keys()];
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", ids);
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return;
+    }
+
+    const html = profiles.map(user => `
+      <div class="user-entry">
+        <span>@${user.username}</span>
+        <button onclick="startChat('${user.id}', '${user.username}')">Chat</button>
+      </div>
+    `).join("");
+
+    document.getElementById("chat-history").innerHTML = html;
+  }
+
+  async function loadChatrooms() {
+    const { data, error } = await supabase.from("chatrooms").select("*");
+    if (error) return;
+    document.getElementById("chatroom-list").innerHTML = data.map(r => `
+      <div class="room-entry">
+        <span>Room: ${r.name}</span>
+        <button onclick="joinRoom('${r.id}', '${r.name}')">Join</button>
+      </div>
+    `).join("");
+  }
+
+    // Create Chatroom
+  window.createRoom = async function () {
+    const name = document.getElementById("room-name").value.trim();
+    const password = document.getElementById("room-password").value;
+  
+     if (!name) return alert("Enter room name");
+  
+    // Insert into chatrooms
+    const { data: room, error } = await supabase
+      .from("chatrooms")
+      .insert([{ name, password: password || null }])
+      .select()
+      .single();
+  
+    if (error) return alert("Error creating room");
+  
+    // Insert into chatroom_members
+     const { error: memberError } = await supabase
+      .from("chatroom_members")
+      .insert([{ user_id, room_id: room.id }]);
+  
+    if (memberError) return alert("Error adding you to room");
+  
+    // Redirect to chatroom
+    location.href = `chatroom.html?room=${room.id}&name=${encodeURIComponent(room.name)}`;
+  };
+
+  
+  // Join Chatroom
+  window.joinRoom = async function (roomId = null, roomName = null) {
+    if (!roomId) {
+      roomName = document.getElementById("room-name").value.trim();
+      const password = document.getElementById("room-password").value;
+  
+      if (!roomName) return alert("Enter room name to join");
+  
+      const { data, error } = await supabase
+        .from("chatrooms")
+        .select("*")
+        .eq("name", roomName)
+        .single();
+  
+      if (error || (data.password && data.password !== password)) {
+        return alert("Invalid room or password");
+      }
+  
+      roomId = data.id;
+      roomName = data.name;
+    }
+  
+    // Join membership (if not already)
+    const { error: joinError } = await supabase
+      .from("chatroom_members")
+      .insert([{ user_id, room_id: roomId }])
+      .select()
+      .maybeSingle();
+  
+    if (joinError && joinError.code !== "23505") {
+      return alert("Error joining room");
+    }
+  
+    // Redirect
+    location.href = `chatroom.html?room=${roomId}&name=${encodeURIComponent(roomName)}`;
+  };
+  window.logout = async function () {
+    await supabase.auth.signOut();
+    location.href = "login.html";
+  };
+
+  window.toggleDarkMode = function () {
+    const isLight = document.body.classList.toggle("light-theme");
+    const btn = document.getElementById("darkmode-btn");
+    btn.textContent = isLight ? "Switch to Dark Mode" : "Switch to Light Mode";
+  };
+
+
+  loadProfile();
+  loadChatHistory();
+  loadChatrooms();
+</script>
+
+</body>
+</html>
